@@ -23,7 +23,7 @@ There is intentionally no undo operation. The server also rejects duplicate bus 
 
 The responsive UI uses a purpose-made Character Counts background asset for the display. Live bus numbers are overlaid as text so they remain sharp and update immediately. The phone controller reuses crops from the same artwork for consistent Derby branding.
 
-- Artwork: `public/art/dismissal-board.png`
+- Artwork: `public/art/dismissal-board.jpg`
 - Display font: `public/fonts/derby-numbers.ttf`
 - Font license: `public/fonts/LICENSE.txt`
 
