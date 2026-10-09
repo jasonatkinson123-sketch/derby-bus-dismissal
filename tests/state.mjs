@@ -39,14 +39,15 @@ state=await get();assert.equal(state.calls.length,1);assert.equal(state.calls[0]
 assert.equal((await post(first)).status,200);assert.equal((await get()).calls.length,1);
 assert.equal((await post({...first,id:'repeat-51',revision:1})).status,409);
 assert.equal((await post({action:'undo',day:state.day,revision:1,id:'no-undo'})).status,400);
-assert.equal((await post({action:'reset',day:state.day,revision:1,id:'too-soon'})).status,409);
-assert.equal((await post({...first,bus:52,id:'stale',revision:0})).status,409);
-assert.equal((await seen.POST(new Request(origin+'/api/seen',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({id:'screen-one',day:state.day,revision:1})}))).status,204);
-assert.equal((await get()).screens[0].revision,1);
+const partialReset=await post({action:'reset',day:state.day,revision:1,id:'partial-reset'});
+assert.equal(partialReset.status,200);state=await get();assert.deepEqual(state.calls,[]);
+assert.equal((await post({...first,bus:52,id:'stale',revision:1})).status,409);
+assert.equal((await seen.POST(new Request(origin+'/api/seen',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({id:'screen-one',day:state.day,revision:2})}))).status,204);
+assert.equal((await get()).screens[0].revision,2);
 
 state=await get();
-for(const bus of roster.slice(1)){
- const result=await post({action:'call',bus,day:state.day,revision:state.revision,id:'call-'+bus});
+for(const bus of roster){
+ const result=await post({action:'call',bus,day:state.day,revision:state.revision,id:'round-two-'+bus});
  assert.equal(result.status,200);state=await get();
 }
 assert.equal(state.calls.length,9);assert.deepEqual(new Set(state.calls.map(call=>call.bus)),new Set(roster));
@@ -61,4 +62,4 @@ const concurrent=await Promise.all([
 assert.deepEqual(concurrent.map(result=>result.status).sort(),[200,409]);
 state=await get();
 assert.equal((await post({action:'call',bus:53,day:'1999-01-01',revision:state.revision,id:'wrong-day'})).status,409);
-console.log('Passed: locked calls, no undo, complete-only reset, all nine buses, acknowledgements, conflicts, origin protection, and day rollover.');
+console.log('Passed: locked calls, no undo, partial and complete resets, all nine buses, acknowledgements, conflicts, origin protection, and day rollover.');
