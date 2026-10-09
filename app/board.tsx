@@ -6,7 +6,7 @@ import {useEffect,useRef,useState} from 'react';
 type Call={bus:number,at:number,id:string};
 type State={day:string,revision:number,calls:Call[],screens?:{revision:number,seen:number}[]};
 
-const buses=[51,52,53,54,55,56,57,59,60];
+const buses=[51,52,53,54,55,56,57,58,59,60];
 const time=(n:number)=>new Date(n).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'});
 
 function CharacterHeader({connected,hasState}:{connected:boolean,hasState:boolean}){
@@ -73,7 +73,7 @@ export default function Board({controller}:{controller:boolean}){
       <div className="live-current" key={latest?.id||'waiting'}>
        {latest?<><span className="live-bus-label">BUS</span><strong className="live-number">{latest.bus}</strong><p className="live-instruction">{connected?'Please make your way to your bus.':'Check with school staff.'}</p></>:<div className="live-empty"><strong>Waiting for<br/>the first bus.</strong><p>Your bus will appear here.</p></div>}
       </div>
-      <div className="live-history" aria-label="Already called">{Array.from({length:8},(_,i)=><div className="history-slot" key={i}>{previous[i]?<strong>{previous[i].bus}</strong>:null}</div>)}</div>
+      <div className="live-history" aria-label="Already called">{Array.from({length:8},(_,i)=>{const entries=i===7?previous.slice(7):previous[i]?[previous[i]]:[];return <div className={'history-slot '+(entries.length>1?'history-pair':'')} key={i}>{entries.map(call=><strong key={call.bus}>{call.bus}</strong>)}</div>})}</div>
       <div className="live-waiting" aria-label="Still waiting">{buses.filter(bus=>!called.has(bus)).map(bus=><span key={bus}>{bus}</span>)}{called.size===buses.length&&<span className="all-called">All buses called</span>}</div>
      </section>
     </div>
