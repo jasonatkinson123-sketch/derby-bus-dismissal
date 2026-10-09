@@ -9,7 +9,7 @@ The hosted pilot is private and requires the owner's ChatGPT sign-in.
 
 ## Dismissal workflow
 
-The controller contains the nine school buses: **51, 52, 53, 54, 55, 56, 57, 59, and 60**.
+The controller contains the ten school buses: **51, 52, 53, 54, 55, 56, 57, 58, 59, and 60**.
 
 1. Tap a bus once when it arrives.
 2. Its controller button turns red and locks.
