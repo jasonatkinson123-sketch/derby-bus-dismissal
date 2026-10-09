@@ -29,10 +29,7 @@ export async function POST(request:Request) {
   if(calls.some((call:any)=>call.bus===body.bus))return response({error:`Bus ${body.bus} has already been called.`},409);
   calls=[...calls,{bus:body.bus,at:Date.now(),id:body.id}];
  }
- if(body.action==='reset'){
-  if(new Set(calls.map((call:any)=>call.bus)).size!==VALID_BUSES.length)return response({error:'The board can be cleared after all buses have been called.'},409);
-  calls=[];
- }
+ if(body.action==='reset')calls=[];
  const result=await env.DB!.prepare('UPDATE dismissal SET revision = revision + 1, calls = ?, requests = ? WHERE day = ? AND revision = ?').bind(JSON.stringify(calls),JSON.stringify([...s.requests,body.id].slice(-100)),day,s.revision).run();
  if(result.meta.changes!==1)return response({error:'Another update arrived. Please try again.'},409);
  return response({day,revision:s.revision+1,calls});
