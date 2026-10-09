@@ -14,10 +14,10 @@ The controller contains the nine school buses: **51, 52, 53, 54, 55, 56, 57, 59,
 1. Tap a bus once when it arrives.
 2. Its controller button turns red and locks.
 3. The classroom display moves that bus into the current-call panel, keeps earlier calls visible, and removes called buses from the waiting strip.
-4. After all nine buttons are red, **Clear board** becomes available.
-5. Clearing resets the display and unlocks every controller button.
+4. Use **Clear board** whenever the run is finished—or anytime you need to restart a demo.
+5. Clearing immediately resets every connected display and unlocks every controller button.
 
-There is intentionally no undo operation. The server also rejects duplicate bus calls and premature resets, so stale or modified clients cannot bypass the workflow.
+There is intentionally no single-bus undo operation. The server rejects duplicate bus calls; the explicit full-board reset is the only way to unlock called buses.
 
 ## Design
 
