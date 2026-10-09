@@ -27,13 +27,13 @@ const seen=await load('app/api/seen/route.ts');
 const origin='https://example.test';
 const get=async()=> (await api.GET(new Request(origin+'/api/state?controller=1'))).json();
 const post=async(body,from=origin)=>api.POST(new Request(origin+'/api/state',{method:'POST',headers:{origin:from,'content-type':'application/json'},body:JSON.stringify(body)}));
-const roster=[51,52,53,54,55,56,57,59,60];
+const roster=[51,52,53,54,55,56,57,58,59,60];
 
 let state=await get();
 assert.equal(state.revision,0);assert.deepEqual(state.calls,[]);
 const first={action:'call',bus:51,day:state.day,revision:0,id:'call-51'};
 assert.equal((await post(first,'https://other.test')).status,403);
-assert.equal((await post({...first,bus:58})).status,400);
+assert.equal((await post({...first,bus:61})).status,400);
 assert.equal((await post(first)).status,200);
 state=await get();assert.equal(state.calls.length,1);assert.equal(state.calls[0].bus,51);
 assert.equal((await post(first)).status,200);assert.equal((await get()).calls.length,1);
@@ -50,7 +50,7 @@ for(const bus of roster){
  const result=await post({action:'call',bus,day:state.day,revision:state.revision,id:'round-two-'+bus});
  assert.equal(result.status,200);state=await get();
 }
-assert.equal(state.calls.length,9);assert.deepEqual(new Set(state.calls.map(call=>call.bus)),new Set(roster));
+assert.equal(state.calls.length,roster.length);assert.deepEqual(new Set(state.calls.map(call=>call.bus)),new Set(roster));
 assert.equal((await post({action:'call',bus:50,day:state.day,revision:state.revision,id:'old-demo'})).status,400);
 const reset=await post({action:'reset',day:state.day,revision:state.revision,id:'complete-reset'});
 assert.equal(reset.status,200);state=await get();assert.deepEqual(state.calls,[]);
@@ -62,4 +62,4 @@ const concurrent=await Promise.all([
 assert.deepEqual(concurrent.map(result=>result.status).sort(),[200,409]);
 state=await get();
 assert.equal((await post({action:'call',bus:53,day:'1999-01-01',revision:state.revision,id:'wrong-day'})).status,409);
-console.log('Passed: locked calls, no undo, partial and complete resets, all nine buses, acknowledgements, conflicts, origin protection, and day rollover.');
+console.log('Passed: locked calls, no undo, partial and complete resets, all ten buses, acknowledgements, conflicts, origin protection, and day rollover.');
