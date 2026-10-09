@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 export const dynamic = 'force-dynamic';
-const VALID_BUSES=[51,52,53,54,55,56,57,59,60];
+const VALID_BUSES=[51,52,53,54,55,56,57,58,59,60];
 const dayNow = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const response = (data:unknown,status=200) => Response.json(data,{status,headers:{'Cache-Control':'no-store, max-age=0'}});
 async function state(day:string) {
