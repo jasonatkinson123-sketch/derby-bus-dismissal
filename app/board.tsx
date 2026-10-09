@@ -33,7 +33,7 @@ export default function Board({controller}:{controller:boolean}){
      lastSeen.current=Date.now();lastSeenRevision=s.revision;
      void fetch('/api/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:screenId.current,day:s.day,revision:s.revision}),signal:AbortSignal.timeout(3500)}).catch(()=>{});
     }
-   }catch{if(!done)setConnected(false)}finally{fetching=false}
+   }catch{if(!done&&Date.now()-lastGood.current>4000)setConnected(false)}finally{fetching=false}
   };
   let lastSeenRevision=-1;pollRef.current=poll;
   const loop=async()=>{await poll();if(!done)timer=setTimeout(loop,750)};void loop();
@@ -46,7 +46,10 @@ export default function Board({controller}:{controller:boolean}){
   catch(e){setNotice(e instanceof Error&&e.name==='TimeoutError'?'Confirmation timed out. Check the board before trying again.':e instanceof Error?e.message:'Could not send. Check your connection.');void pollRef.current()}
   finally{setBusy(false)}
  }
- const calls=(state?.calls||[]).filter(c=>buses.includes(c.bus)),latest=calls.at(-1),called=new Set(calls.map(c=>c.bus)),previous=[...calls].reverse().filter((c,i,arr)=>c.bus!==latest?.bus&&arr.findIndex(a=>a.bus===c.bus)===i),screens=state?.screens||[],received=screens.filter(s=>s.revision>=(state?.revision??0)).length;
+ const storedCalls=(state?.calls||[]).filter(c=>buses.includes(c.bus));
+ // A classroom display must never keep showing stale dismissals. Controllers retain
+ // their last known state for recovery, while a disconnected display fails blank.
+ const calls=controller||connected?storedCalls:[],latest=calls.at(-1),called=new Set(calls.map(c=>c.bus)),previous=[...calls].reverse().filter((c,i,arr)=>c.bus!==latest?.bus&&arr.findIndex(a=>a.bus===c.bus)===i),screens=state?.screens||[],received=screens.filter(s=>s.revision>=(state?.revision??0)).length;
  return <main className={controller?'controller':'display'}>
   <div className="page">
    {controller&&<CharacterHeader connected={connected} hasState={!!state}/>}
