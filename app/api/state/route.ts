@@ -1,3 +1,4 @@
+import {authorized} from '../../../lib/controller-auth';
 import { env } from 'cloudflare:workers';
 export const dynamic = 'force-dynamic';
 const VALID_BUSES=[51,52,53,54,55,56,57,58,59,60];
@@ -8,13 +9,15 @@ async function state(day:string) {
  return {day, revision:row?.revision ?? 0, calls:JSON.parse(row?.calls ?? '[]').filter((call:any)=>VALID_BUSES.includes(call.bus)), requests:JSON.parse(row?.requests ?? '[]')};
 }
 export async function GET(request:Request) {
- const s=await state(dayNow());
  const controller=new URL(request.url).searchParams.has('controller');
+ if(controller && !(await authorized(request)))return response({error:'Unauthorized'},401);
+ const s=await state(dayNow());
  const screens=controller ? (await env.DB!.prepare('SELECT revision, seen FROM screens WHERE day = ? AND seen > ?').bind(s.day,Date.now()-7000).all()).results : [];
  return response({day:s.day,revision:s.revision,calls:s.calls,screens,serverTime:Date.now()});
 }
 export async function POST(request:Request) {
  if(request.headers.get('origin')!==new URL(request.url).origin) return response({error:'Invalid origin'},403);
+ if(!(await authorized(request)))return response({error:'Unauthorized'},401);
  // This shared prototype is protected by the Site's owner-only access policy.
  let body:any;try{body=await request.json()}catch{return response({error:'Invalid request'},400)}
  if(!['call','reset'].includes(body.action)||!Number.isInteger(body.revision)||typeof body.id!=='string'||body.id.length>80) return response({error:'Invalid action'},400);

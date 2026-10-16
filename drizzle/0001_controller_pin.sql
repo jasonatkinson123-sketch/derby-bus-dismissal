@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id TEXT PRIMARY KEY NOT NULL,
+  started INTEGER NOT NULL,
+  attempts INTEGER NOT NULL
+);

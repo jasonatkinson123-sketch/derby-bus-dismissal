@@ -1,0 +1,14 @@
+{
+  "name": "server",
+  "main": "vinext/server/app-router-entry",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {"not_found_handling":"none"},
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "derby-bus-dismissal",
+      "database_id": "d551acab-3329-4b62-b627-640fd3951cd6"
+    }
+  ]
+}
