@@ -51,7 +51,7 @@ export async function permitAttempt(request:Request){
  await settings().DB.prepare('DELETE FROM login_attempts WHERE started < ?').bind(now-period).run();
  const row=await settings().DB.prepare('SELECT started, attempts FROM login_attempts WHERE id=?').bind(bucket).first<{started:number,attempts:number}>();
  if(row&&row.attempts>=5&&now-row.started<period)return false;
- await settings().DB.prepare('INSERT INTO login_attempts(id,started,attempts) VALUES(?,?,1) ON CONFLICT(id) DO UPDATE SET attempts=attempts+1').bind(bucket,now).run();
+ await settings().DB.prepare('INSERT INTO login_attempts(id,started,attempts) VALUES(?,?,1) ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN started < excluded.started-900000 THEN 1 ELSE attempts+1 END, started=CASE WHEN started < excluded.started-900000 THEN excluded.started ELSE started END').bind(bucket,now).run();
  return true;
 }
 export function noStore(data:unknown,status=200,headers?:HeadersInit){return Response.json(data,{status,headers:{'Cache-Control':'no-store',...headers}})}
