@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS controller_sessions (token_hash TEXT PRIMARY KEY NOT NULL, expires INTEGER NOT NULL);
