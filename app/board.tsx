@@ -19,6 +19,7 @@ function CharacterHeader({connected,hasState}:{connected:boolean,hasState:boolea
 
 export default function Board({controller}:{controller:boolean}){
  const [pinStatus,setPinStatus]=useState<'checking'|'locked'|'unlocked'>(controller?'locked':'unlocked'),[pin,setPin]=useState(''),[pinError,setPinError]=useState(''),[pinBusy,setPinBusy]=useState(false);
+ const [connectionError,setConnectionError]=useState(''),[screenStatusError,setScreenStatusError]=useState('');
  const [state,setState]=useState<State|null>(null),[connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[,setNow]=useState(0),[rtt,setRtt]=useState(0),[reset,setReset]=useState(false),[sound,setSound]=useState(false);
  const tokenRef=useRef('');
  const current=useRef<State|null>(null),lastGood=useRef(0),lastSeen=useRef(0),screenId=useRef(''),audio=useRef<AudioContext|null>(null),soundRef=useRef(false),first=useRef(true),pollRef=useRef<()=>Promise<void>>(async()=>{});
@@ -29,20 +30,37 @@ export default function Board({controller}:{controller:boolean}){
   if(controller&&pinStatus!=='unlocked')return;
   screenId.current=crypto.randomUUID();let done=false,timer:ReturnType<typeof setTimeout>,fetching=false;
   const poll=async()=>{if(fetching||done)return;fetching=true;const start=performance.now();
-   try{const res=await fetch('/api/state'+(controller?'?controller=1':''),{headers:controller?{Authorization:'Bearer '+tokenRef.current}:{},cache:'no-store',signal:AbortSignal.timeout(3500)});if(res.status===401&&controller){setPinStatus('locked');throw Error('Unauthorized')}if(!res.ok)throw Error();const s=await res.json() as State;
+   try{
+    // The live bus list is intentionally public; never make the controller's
+    // connectivity depend on the optional authenticated screen-receipt query.
+    const res=await fetch('/api/state',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw Error('Bus feed: HTTP '+res.status);
+    const s=await res.json() as State;
+    if(controller){
+      void fetch('/api/state?controller=1',{headers:{Authorization:'Bearer '+tokenRef.current},cache:'no-store',signal:AbortSignal.timeout(8000)})
+        .then(async r=>{
+          if(done)return;
+          if(r.status===401){setConnectionError('Controller authorization expired. Please enter your PIN again.');setPinStatus('locked');return}
+          if(!r.ok){setScreenStatusError('Screen confirmations unavailable (HTTP '+r.status+').');return}
+          const extra=await r.json() as State;
+          setScreenStatusError('');
+          if(extra.revision===current.current?.revision)apply(extra);
+        })
+        .catch(e=>{if(!done)setScreenStatusError('Screen confirmations unavailable: '+(e instanceof Error?e.message:'network error'))});
+    }
     if(done)return;
-    const prev=current.current?.calls.at(-1)?.id;apply(s);lastGood.current=Date.now();setConnected(true);setRtt(Math.round(performance.now()-start));
+    const prev=current.current?.calls.at(-1)?.id;apply(s);lastGood.current=Date.now();setConnected(true);setConnectionError('');setRtt(Math.round(performance.now()-start));
     if(!first.current&&s.calls.at(-1)?.id&&s.calls.at(-1)?.id!==prev&&soundRef.current&&!controller){try{const a=audio.current!;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=660;g.gain.setValueAtTime(0,a.currentTime);g.gain.linearRampToValueAtTime(.055,a.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+1);o.start();o.stop(a.currentTime+1)}catch{}}
     first.current=false;
     if(!controller&&document.visibilityState==='visible'&&(Date.now()-lastSeen.current>2500||s.revision!==lastSeenRevision)){
      lastSeen.current=Date.now();lastSeenRevision=s.revision;
      void fetch('/api/seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:screenId.current,day:s.day,revision:s.revision}),signal:AbortSignal.timeout(3500)}).catch(()=>{});
     }
-   }catch{if(!done&&Date.now()-lastGood.current>4000)setConnected(false)}finally{fetching=false}
+   }catch(e){if(!done){setConnectionError(e instanceof Error?e.message:'Network error');if(Date.now()-lastGood.current>12000)setConnected(false)}}finally{fetching=false}
   };
   let lastSeenRevision=-1;pollRef.current=poll;
   const loop=async()=>{await poll();if(!done)timer=setTimeout(loop,750)};void loop();
-  const tick=setInterval(()=>{setNow(Date.now());if(Date.now()-lastGood.current>4000)setConnected(false)},500);
+  const tick=setInterval(()=>{setNow(Date.now());if(Date.now()-lastGood.current>12000)setConnected(false)},500);
   const visible=()=>{if(document.visibilityState==='visible'){lastSeen.current=0;void poll()}};document.addEventListener('visibilitychange',visible);
   return()=>{done=true;clearTimeout(timer);clearInterval(tick);document.removeEventListener('visibilitychange',visible)};
  },[controller,pinStatus]);
@@ -58,13 +76,14 @@ export default function Board({controller}:{controller:boolean}){
  return <main className={controller?'controller':'display'}>
   <div className="page">
    {controller&&<CharacterHeader connected={connected} hasState={!!state}/>}
-   {!connected&&state&&<div className="warning" role="alert">Connection lost — bus information may be out of date. Check with school staff.</div>}
+   {!connected&&<div className="warning" role="alert">Connection unavailable{connectionError?": "+connectionError:" — waiting for bus updates."} Please check with school staff.</div>}
    {controller?<>
     {pinStatus!=='unlocked'?<section className="control-panel" style={{maxWidth:420,margin:'40px auto',padding:24}}><h1>Dismissal controller</h1>{pinStatus==='checking'?<p>Checking this device…</p>:<form onSubmit={unlock}><p>Enter your 4-digit PIN. Enter your PIN each time you open the controller.</p><input autoFocus aria-label="Four-digit controller PIN" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} style={{fontSize:24,width:'100%',padding:12}}/><p role="alert">{pinError}</p><button type="submit" disabled={pinBusy||pin.length!==4}>{pinBusy?'Checking…':'Unlock controller'}</button></form>}</section>:<>
     <section className="control-title"><p className="eyebrow">DISMISSAL CONTROL</p><h1>Bus dismissal</h1><p>Tap a bus as it arrives. Every connected display follows.</p></section>
     <section className="control-panel">
      <div className="control-top"><span className="eyebrow">CALL A BUS</span><a href="/" target="_blank" rel="noreferrer">Open display ↗</a></div>
      <div className="controller-current" aria-live="polite">{called.size===buses.length?<>All buses <strong>COMPLETE</strong></>:latest?<>Now dismissing <strong>BUS {latest.bus}</strong></>:"Ready for the first bus"}</div><div className="bus-buttons">{buses.map(bus=>{const isCalled=called.has(bus);return <button key={bus} disabled={!connected||busy||isCalled} aria-pressed={isCalled} className={'bus-button '+(isCalled?'called':'')} onClick={()=>void send('call',bus)}><span className="bus-label">BUS</span><strong>{bus}</strong><span className="bus-status">{isCalled?'Called ✓':'Call bus →'}</span></button>})}</div>
+     {screenStatusError&&<p role="status" style={{fontSize:13,color:'#8e4a06'}}>{screenStatusError}</p>}
      <div className="receipt" aria-live="polite"><span className="receipt-symbol">{busy?'…':received?'✓':'○'}</span><div><strong>{busy?'Sending bus call…':screens.length?(received===screens.length?'Received by '+received+' display'+(received===1?'':'s'):'Waiting for display confirmation…'):'No active classroom display'}</strong><small>{notice||'Open the display on a second device to test.'}</small></div></div>
      <div className={'control-actions '+(called.size?'clearable':'')}><span>{called.size===buses.length?'Dismissal complete.':called.size?'Clear resets every called bus.':'Call a bus to begin dismissal.'}</span><button disabled={!connected||busy||called.size===0} onClick={()=>setReset(true)}>Clear board</button></div>
      {reset&&<div className="reset-confirm" role="alert"><p>Clear the board and unlock every bus button?</p><button onClick={()=>void send('reset')}>Clear and reset</button><button onClick={()=>setReset(false)}>Cancel</button></div>}
