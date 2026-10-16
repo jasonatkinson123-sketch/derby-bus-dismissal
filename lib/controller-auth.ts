@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 
 const encoder = new TextEncoder();
-const settings = () => env as unknown as { CONTROLLER_PIN?:string; SESSION_SECRET?:string; DB: typeof env.DB };
+const settings = () => env as unknown as { CONTROLLER_PIN?:string; SESSION_SECRET?:string; DB: NonNullable<typeof env.DB> };
 const cookieName = 'derby_controller';
 const maxAge = 30 * 24 * 60 * 60;
 function hex(bytes:Uint8Array){return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('')}
