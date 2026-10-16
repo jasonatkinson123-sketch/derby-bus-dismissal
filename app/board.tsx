@@ -45,7 +45,7 @@ export default function Board({controller}:{controller:boolean}){
   const tick=setInterval(()=>{setNow(Date.now());if(Date.now()-lastGood.current>4000)setConnected(false)},500);
   const visible=()=>{if(document.visibilityState==='visible'){lastSeen.current=0;void poll()}};document.addEventListener('visibilitychange',visible);
   return()=>{done=true;clearTimeout(timer);clearInterval(tick);document.removeEventListener('visibilitychange',visible)};
- },[controller]);
+ },[controller,pinStatus]);
  async function send(action:string,bus?:number){if(!current.current||busy||!connected)return;setBusy(true);setNotice('Sending…');setReset(false);const s=current.current;
   try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokenRef.current},body:JSON.stringify({action,bus,day:s.day,revision:s.revision,id:crypto.randomUUID()}),signal:AbortSignal.timeout(5000)});const data=await r.json() as State&{error?:string};if(!r.ok)throw Error(data.error||'Could not send.');apply({...data,screens:current.current?.screens});setNotice(action==='call'?'Bus '+bus+' sent and locked.':'Board cleared for the next dismissal.');void pollRef.current()}
   catch(e){setNotice(e instanceof Error&&e.name==='TimeoutError'?'Confirmation timed out. Check the board before trying again.':e instanceof Error?e.message:'Could not send. Check your connection.');void pollRef.current()}
