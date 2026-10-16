@@ -23,14 +23,28 @@ export function isValidPin(pin:unknown){const configured=settings().CONTROLLER_P
  if(!configured||!/^\d{4}$/.test(configured))throw new Error('CONTROLLER_PIN must be a four-digit secret');
  return typeof pin==='string' && /^\d{4}$/.test(pin) && configured===pin;
 }
-export async function permitAttempt(request:Request){
+const LOGIN_WINDOW_MS=15*60*1000;
+const MAX_FAILED_LOGINS=5;
+async function clientBucket(request:Request){
  const ip=request.headers.get('CF-Connecting-IP')||'unknown';
- const bucket=hex(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(ip)))).slice(0,40);
- const now=Date.now(),period=15*60*1000;
- await settings().DB.prepare('DELETE FROM login_attempts WHERE started < ?').bind(now-period).run();
- const row=await settings().DB.prepare('SELECT started, attempts FROM login_attempts WHERE id=?').bind(bucket).first<{started:number,attempts:number}>();
- if(row&&row.attempts>=5&&now-row.started<period)return false;
- await settings().DB.prepare('INSERT INTO login_attempts(id,started,attempts) VALUES(?,?,1) ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN started < excluded.started-900000 THEN 1 ELSE attempts+1 END, started=CASE WHEN started < excluded.started-900000 THEN excluded.started ELSE started END').bind(bucket,now).run();
- return true;
+ return (await hashed(ip)).slice(0,40);
+}
+export async function permitAttempt(request:Request){
+ const bucket=await clientBucket(request);
+ const now=Date.now();
+ const row=await settings().DB.prepare('SELECT started,attempts FROM login_attempts WHERE id=?').bind(bucket).first<{started:number,attempts:number}>();
+ return !row || now-row.started>=LOGIN_WINDOW_MS || row.attempts<MAX_FAILED_LOGINS;
+}
+export async function recordFailedAttempt(request:Request){
+ const bucket=await clientBucket(request);
+ const now=Date.now(), cutoff=now-LOGIN_WINDOW_MS;
+ await settings().DB.prepare(`INSERT INTO login_attempts(id,started,attempts) VALUES(?,?,1)
+ ON CONFLICT(id) DO UPDATE SET
+ attempts=CASE WHEN started<=? THEN 1 ELSE attempts+1 END,
+ started=CASE WHEN started<=? THEN ? ELSE started END`)
+ .bind(bucket,now,cutoff,cutoff,now).run();
+}
+export async function clearFailedAttempts(request:Request){
+ await settings().DB.prepare('DELETE FROM login_attempts WHERE id=?').bind(await clientBucket(request)).run();
 }
 export function noStore(data:unknown,status=200,headers?:HeadersInit){return Response.json(data,{status,headers:{'Cache-Control':'no-store',...headers}})}
