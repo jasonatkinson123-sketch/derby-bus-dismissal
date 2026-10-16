@@ -1,44 +1,23 @@
-import { env } from 'cloudflare:workers';
-
-const encoder = new TextEncoder();
-const settings = () => env as unknown as { CONTROLLER_PIN?:string; SESSION_SECRET?:string; DB: NonNullable<typeof env.DB> };
-const cookieName = 'derby_controller';
-const maxAge = 30 * 24 * 60 * 60;
+import {env} from 'cloudflare:workers';
+const encoder=new TextEncoder();
+const settings=()=>env as unknown as {CONTROLLER_PIN?:string; DB: NonNullable<typeof env.DB>};
 function hex(bytes:Uint8Array){return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('')}
-async function key(){
- const secret=settings().SESSION_SECRET;
- if(!secret || secret.length<32) throw new Error('SESSION_SECRET must be configured (32+ characters)');
- return crypto.subtle.importKey('raw',encoder.encode(secret),'HMAC',false,['sign']);
-}
-async function signature(payload:string){
- const k=await key();
- return hex(new Uint8Array(await crypto.subtle.sign('HMAC',k,encoder.encode(payload))));
-}
-async function secureEqual(a:string,b:string){
- if(a.length!==b.length)return false;
- let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);
- return diff===0;
-}
-export function sessionCookie(value:string,maxAgeSeconds=maxAge){
- return `${cookieName}=${value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAgeSeconds}`;
-}
+async function hashed(token:string){return hex(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(token))))}
 export async function issueSession(){
- const expiry=Date.now()+maxAge*1000;
- // Tying signatures to the current PIN invalidates cookies when the PIN changes.
- const nonce=crypto.randomUUID();
- const data=`${expiry}.${nonce}.${settings().CONTROLLER_PIN || ''}`;
- return `${expiry}.${nonce}.${await signature(data)}`;
+ const token=hex(crypto.getRandomValues(new Uint8Array(32)));
+ await settings().DB.prepare('INSERT INTO controller_sessions (token_hash,expires) VALUES (?,?)').bind(await hashed(token),Date.now()+8*60*60*1000).run();
+ return token;
 }
 export async function authorized(request:Request){
- const cookie=request.headers.get('cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1);
- if(!cookie)return false;
- const parts=cookie.split('.');
- if(parts.length!==3)return false;
- const [expiry,nonce,sig]=parts;
- if(!/^\d{13}$/.test(expiry)||!/^[-a-f0-9]{36}$/.test(nonce)||!new RegExp('^[a-f0-9]{64}$').test(sig))return false;
- if(Number(expiry)<=Date.now()||Number(expiry)>Date.now()+maxAge*1000+60000)return false;
- const expected=await signature(`${expiry}.${nonce}.${settings().CONTROLLER_PIN||''}`);
- return secureEqual(sig,expected);
+ const authorization=request.headers.get('Authorization')||'';
+ if(!/^Bearer [a-f0-9]{64}$/.test(authorization))return false;
+ const token=authorization.slice(7);
+ const row=await settings().DB.prepare('SELECT expires FROM controller_sessions WHERE token_hash=?').bind(await hashed(token)).first<{expires:number}>();
+ return !!row && row.expires>Date.now();
+}
+export async function revokeSession(request:Request){
+ const authorization=request.headers.get('Authorization')||'';
+ if(/^Bearer [a-f0-9]{64}$/.test(authorization))await settings().DB.prepare('DELETE FROM controller_sessions WHERE token_hash=?').bind(await hashed(authorization.slice(7))).run();
 }
 export function isValidPin(pin:unknown){const configured=settings().CONTROLLER_PIN;
  if(!configured||!/^\d{4}$/.test(configured))throw new Error('CONTROLLER_PIN must be a four-digit secret');
