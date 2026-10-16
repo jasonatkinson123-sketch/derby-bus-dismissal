@@ -9,11 +9,11 @@ type State={day:string,revision:number,calls:Call[],screens?:{revision:number,se
 const buses=[51,52,53,54,55,56,57,58,59,60];
 const time=(n:number)=>new Date(n).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'});
 
-function CharacterHeader({connected,hasState}:{connected:boolean,hasState:boolean}){
+function CharacterHeader({connected,hasState,showConnection}:{connected:boolean,hasState:boolean,showConnection:boolean}){
  return <header className="phone-header">
  <a href="/" className="phone-brand" aria-label="Derby Middle School display"/>
  <div className="phone-pillars" role="img" aria-label="Character Counts: Trustworthiness, Respect, Responsibility, Fairness, Caring, Citizenship"/>
- <span className={'connection '+(connected?'online':'offline')}><i/>{connected?'Connected':hasState?'Connection lost':'Connecting…'}</span>
+ {showConnection&&<span className={'connection '+(connected?'online':'offline')}><i/>{connected?'Connected':hasState?'Connection lost':'Connecting…'}</span>}
  </header>
 }
 
@@ -23,8 +23,8 @@ export default function Board({controller}:{controller:boolean}){
  const [state,setState]=useState<State|null>(null),[connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[,setNow]=useState(0),[rtt,setRtt]=useState(0),[reset,setReset]=useState(false),[sound,setSound]=useState(false);
  const tokenRef=useRef('');
  const current=useRef<State|null>(null),lastGood=useRef(0),lastSeen=useRef(0),screenId=useRef(''),audio=useRef<AudioContext|null>(null),soundRef=useRef(false),first=useRef(true),pollRef=useRef<()=>Promise<void>>(async()=>{});
- async function unlock(e:React.FormEvent){e.preventDefault();setPinBusy(true);setPinError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});const v=await r.json() as {error?:string;token?:string};if(!r.ok)throw Error(v.error||'Could not unlock');tokenRef.current=v.token||'';setPin('');setPinStatus('unlocked')}catch(e){setPinError(e instanceof Error?e.message:'Unable to unlock')}finally{setPinBusy(false)}}
- async function lock(){await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+tokenRef.current}}).catch(()=>{});tokenRef.current='';setPinStatus('locked');setState(null);current.current=null}
+ async function unlock(e:React.FormEvent){e.preventDefault();setPinBusy(true);setPinError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});const v=await r.json() as {error?:string;token?:string};if(!r.ok)throw Error(v.error||'Could not unlock');tokenRef.current=v.token||'';setPin('');setConnectionError('');setPinStatus('unlocked')}catch(e){setPinError(e instanceof Error?e.message:'Unable to unlock')}finally{setPinBusy(false)}}
+ async function lock(){await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+tokenRef.current}}).catch(()=>{});tokenRef.current='';setPinStatus('locked');setConnectionError('');setConnected(false);setState(null);current.current=null}
  function apply(s:State){if(current.current&&current.current.day===s.day&&s.revision<current.current.revision)return;current.current=s;setState(s)}
  useEffect(()=>{
   if(controller&&pinStatus!=='unlocked')return;
@@ -75,8 +75,8 @@ export default function Board({controller}:{controller:boolean}){
  const calls=controller||connected?storedCalls:[],latest=calls.at(-1),called=new Set(calls.map(c=>c.bus)),previous=[...calls].reverse().filter((c,i,arr)=>c.bus!==latest?.bus&&arr.findIndex(a=>a.bus===c.bus)===i),screens=state?.screens||[],received=screens.filter(s=>s.revision>=(state?.revision??0)).length;
  return <main className={controller?'controller':'display'}>
   <div className="page">
-   {controller&&<CharacterHeader connected={connected} hasState={!!state}/>}
-   {!connected&&<div className="warning" role="alert">Connection unavailable{connectionError?": "+connectionError:" — waiting for bus updates."} Please check with school staff.</div>}
+   {controller&&<CharacterHeader connected={connected} hasState={!!state} showConnection={pinStatus==='unlocked'}/>}
+   {!connected&&(!controller||pinStatus==='unlocked')&&(!!connectionError||!!state)&&<div className="warning" role="alert">Connection unavailable{connectionError?": "+connectionError:" — waiting for bus updates."} Please check with school staff.</div>}
    {controller?<>
     {pinStatus!=='unlocked'?<section className="control-panel" style={{maxWidth:420,margin:'40px auto',padding:24}}><h1>Dismissal controller</h1>{pinStatus==='checking'?<p>Checking this device…</p>:<form onSubmit={unlock}><p>Enter your 4-digit PIN. Enter your PIN each time you open the controller.</p><input autoFocus aria-label="Four-digit controller PIN" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} style={{fontSize:24,width:'100%',padding:12}}/><p role="alert">{pinError}</p><button type="submit" disabled={pinBusy||pin.length!==4}>{pinBusy?'Checking…':'Unlock controller'}</button></form>}</section>:<>
     <section className="control-title"><p className="eyebrow">DISMISSAL CONTROL</p><h1>Bus dismissal</h1><p>Tap a bus as it arrives. Every connected display follows.</p></section>
