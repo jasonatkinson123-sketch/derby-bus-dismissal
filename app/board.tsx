@@ -18,18 +18,18 @@ function CharacterHeader({connected,hasState}:{connected:boolean,hasState:boolea
 }
 
 export default function Board({controller}:{controller:boolean}){
- const [pinStatus,setPinStatus]=useState<'checking'|'locked'|'unlocked'>(controller?'checking':'unlocked'),[pin,setPin]=useState(''),[pinError,setPinError]=useState(''),[pinBusy,setPinBusy]=useState(false);
+ const [pinStatus,setPinStatus]=useState<'checking'|'locked'|'unlocked'>(controller?'locked':'unlocked'),[pin,setPin]=useState(''),[pinError,setPinError]=useState(''),[pinBusy,setPinBusy]=useState(false);
  const [state,setState]=useState<State|null>(null),[connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[,setNow]=useState(0),[rtt,setRtt]=useState(0),[reset,setReset]=useState(false),[sound,setSound]=useState(false);
+ const tokenRef=useRef('');
  const current=useRef<State|null>(null),lastGood=useRef(0),lastSeen=useRef(0),screenId=useRef(''),audio=useRef<AudioContext|null>(null),soundRef=useRef(false),first=useRef(true),pollRef=useRef<()=>Promise<void>>(async()=>{});
- useEffect(()=>{if(!controller)return;void fetch('/api/auth/session',{cache:'no-store'}).then(r=>r.json()) .then(v=>setPinStatus((v as {authorized:boolean}).authorized?'unlocked':'locked')).catch(()=>setPinStatus('locked'))},[controller]);
- async function unlock(e:React.FormEvent){e.preventDefault();setPinBusy(true);setPinError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});const v=await r.json() as {error?:string};if(!r.ok)throw Error(v.error||'Could not unlock');setPin('');setPinStatus('unlocked');void pollRef.current()}catch(e){setPinError(e instanceof Error?e.message:'Unable to unlock')}finally{setPinBusy(false)}}
- async function lock(){await fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});setPinStatus('locked');setState(null);current.current=null}
+ async function unlock(e:React.FormEvent){e.preventDefault();setPinBusy(true);setPinError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});const v=await r.json() as {error?:string;token?:string};if(!r.ok)throw Error(v.error||'Could not unlock');tokenRef.current=v.token||'';setPin('');setPinStatus('unlocked')}catch(e){setPinError(e instanceof Error?e.message:'Unable to unlock')}finally{setPinBusy(false)}}
+ async function lock(){await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+tokenRef.current}}).catch(()=>{});tokenRef.current='';setPinStatus('locked');setState(null);current.current=null}
  function apply(s:State){if(current.current&&current.current.day===s.day&&s.revision<current.current.revision)return;current.current=s;setState(s)}
  useEffect(()=>{
   if(controller&&pinStatus!=='unlocked')return;
   screenId.current=crypto.randomUUID();let done=false,timer:ReturnType<typeof setTimeout>,fetching=false;
   const poll=async()=>{if(fetching||done)return;fetching=true;const start=performance.now();
-   try{const res=await fetch('/api/state'+(controller?'?controller=1':''),{cache:'no-store',signal:AbortSignal.timeout(3500)});if(res.status===401&&controller){setPinStatus('locked');throw Error('Unauthorized')}if(!res.ok)throw Error();const s=await res.json() as State;
+   try{const res=await fetch('/api/state'+(controller?'?controller=1':''),{headers:controller?{Authorization:'Bearer '+tokenRef.current}:{},cache:'no-store',signal:AbortSignal.timeout(3500)});if(res.status===401&&controller){setPinStatus('locked');throw Error('Unauthorized')}if(!res.ok)throw Error();const s=await res.json() as State;
     if(done)return;
     const prev=current.current?.calls.at(-1)?.id;apply(s);lastGood.current=Date.now();setConnected(true);setRtt(Math.round(performance.now()-start));
     if(!first.current&&s.calls.at(-1)?.id&&s.calls.at(-1)?.id!==prev&&soundRef.current&&!controller){try{const a=audio.current!;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=660;g.gain.setValueAtTime(0,a.currentTime);g.gain.linearRampToValueAtTime(.055,a.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+1);o.start();o.stop(a.currentTime+1)}catch{}}
@@ -47,7 +47,7 @@ export default function Board({controller}:{controller:boolean}){
   return()=>{done=true;clearTimeout(timer);clearInterval(tick);document.removeEventListener('visibilitychange',visible)};
  },[controller]);
  async function send(action:string,bus?:number){if(!current.current||busy||!connected)return;setBusy(true);setNotice('Sending…');setReset(false);const s=current.current;
-  try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,bus,day:s.day,revision:s.revision,id:crypto.randomUUID()}),signal:AbortSignal.timeout(5000)});const data=await r.json() as State&{error?:string};if(!r.ok)throw Error(data.error||'Could not send.');apply({...data,screens:current.current?.screens});setNotice(action==='call'?'Bus '+bus+' sent and locked.':'Board cleared for the next dismissal.');void pollRef.current()}
+  try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokenRef.current},body:JSON.stringify({action,bus,day:s.day,revision:s.revision,id:crypto.randomUUID()}),signal:AbortSignal.timeout(5000)});const data=await r.json() as State&{error?:string};if(!r.ok)throw Error(data.error||'Could not send.');apply({...data,screens:current.current?.screens});setNotice(action==='call'?'Bus '+bus+' sent and locked.':'Board cleared for the next dismissal.');void pollRef.current()}
   catch(e){setNotice(e instanceof Error&&e.name==='TimeoutError'?'Confirmation timed out. Check the board before trying again.':e instanceof Error?e.message:'Could not send. Check your connection.');void pollRef.current()}
   finally{setBusy(false)}
  }
@@ -60,7 +60,7 @@ export default function Board({controller}:{controller:boolean}){
    {controller&&<CharacterHeader connected={connected} hasState={!!state}/>}
    {!connected&&state&&<div className="warning" role="alert">Connection lost — bus information may be out of date. Check with school staff.</div>}
    {controller?<>
-    {pinStatus!=='unlocked'?<section className="control-panel" style={{maxWidth:420,margin:'40px auto',padding:24}}><h1>Dismissal controller</h1>{pinStatus==='checking'?<p>Checking this device…</p>:<form onSubmit={unlock}><p>Enter your 4-digit PIN. This device will remain signed in for 30 days.</p><input autoFocus aria-label="Four-digit controller PIN" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} style={{fontSize:24,width:'100%',padding:12}}/><p role="alert">{pinError}</p><button type="submit" disabled={pinBusy||pin.length!==4}>{pinBusy?'Checking…':'Unlock controller'}</button></form>}</section>:<>
+    {pinStatus!=='unlocked'?<section className="control-panel" style={{maxWidth:420,margin:'40px auto',padding:24}}><h1>Dismissal controller</h1>{pinStatus==='checking'?<p>Checking this device…</p>:<form onSubmit={unlock}><p>Enter your 4-digit PIN. Enter your PIN each time you open the controller.</p><input autoFocus aria-label="Four-digit controller PIN" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} style={{fontSize:24,width:'100%',padding:12}}/><p role="alert">{pinError}</p><button type="submit" disabled={pinBusy||pin.length!==4}>{pinBusy?'Checking…':'Unlock controller'}</button></form>}</section>:<>
     <section className="control-title"><p className="eyebrow">DISMISSAL CONTROL</p><h1>Bus dismissal</h1><p>Tap a bus as it arrives. Every connected display follows.</p></section>
     <section className="control-panel">
      <div className="control-top"><span className="eyebrow">CALL A BUS</span><a href="/" target="_blank" rel="noreferrer">Open display ↗</a></div>
@@ -71,7 +71,7 @@ export default function Board({controller}:{controller:boolean}){
     </section>
     <section className="activity"><div><p className="eyebrow">TODAY’S CALLS</p><span>{called.size} of {buses.length} buses called</span></div>{calls.length?<ol>{[...calls].reverse().slice(0,12).map(c=><li key={c.id}><strong>Bus {c.bus}</strong><span>{time(c.at)}</span></li>)}</ol>:<p className="muted">A fresh start. No buses called yet.</p>}</section>
     <button type="button" onClick={lock} style={{marginTop:16}}>Lock controller</button>
-    <p className="technical">{connected?'Server round trip: '+rtt+' ms · Checks every 0.75 seconds':'Waiting for a connection'}<br/>Authorized controller · device remembered for 30 days.</p>
+    <p className="technical">{connected?'Server round trip: '+rtt+' ms · Checks every 0.75 seconds':'Waiting for a connection'}<br/>Authorized for this open controller tab.</p>
    </> }</>:<>
     <div className="art-board">
      <img className="board-art" src="/art/dismissal-board.jpg" alt="Derby Middle School. Character Counts: Trustworthiness, Respect, Responsibility, Fairness, Caring, Citizenship. Already called. Still waiting. Have a great afternoon." fetchPriority="high"/>
