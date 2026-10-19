@@ -6,3 +6,13 @@
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .bus-button.called,.bus-button.called:hover{background:#be0019;border-color:#be0019;color:#fff;opacity:1;transform:none;cursor:default}.control-actions{align-items:center}.control-actions>span{font-size:11px;color:#666;max-width:65%;line-height:1.4}.control-actions.clearable>span{color:#167a43;font-weight:700}.control-actions.clearable button{background:#171717;color:#fff;padding:10px 15px;border-radius:3px}.control-actions.clearable button:disabled{background:transparent;color:inherit}
 .live-bus-label{transform:translateY(.7cqw)}.live-instruction{transform:translateY(-.7cqw)}
+
+/* Additional dismissal groups and non-overlapping history */
+.bus-button .group-button-label{font-family:Arial,Helvetica,sans-serif;font-size:17px;letter-spacing:0;line-height:1.2;overflow-wrap:anywhere;margin:12px 0}
+.live-group-name{font-family:DerbyNumbers,Arial,sans-serif;font-size:6.3cqw;line-height:1.1;text-align:center;color:var(--red);max-width:95%;overflow-wrap:break-word}
+.live-history .history-slot.history-pair{gap:.15cqw;flex-direction:column}
+.live-history .history-slot.history-pair strong{font-size:4.4cqw;line-height:1;letter-spacing:-.03em;transform:none}
+.live-history .history-slot strong.history-group{font-family:Arial,sans-serif;font-size:1.5cqw;line-height:1.05;letter-spacing:-.03em;text-align:center;transform:none;overflow-wrap:break-word;padding:0}
+.live-history .history-slot.history-pair strong.history-group{font-size:1.45cqw}
+.live-waiting{gap:.7cqw;flex-wrap:wrap;align-content:center}
+.live-waiting span.waiting-group{font-family:Arial,sans-serif;font-size:1.35cqw;letter-spacing:-.02em;font-weight:800;white-space:nowrap}
