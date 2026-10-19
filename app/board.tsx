@@ -3,10 +3,11 @@
 import {useEffect,useRef,useState} from 'react';
 
 
-type Call={bus:number,at:number,id:string};
+type Call={bus:number|string,at:number,id:string};
 type State={day:string,revision:number,calls:Call[],screens?:{revision:number,seen:number}[]};
 
-const buses=[51,52,53,54,55,56,57,58,59,60];
+const buses:(number|string)[]=[51,52,53,54,55,56,57,58,59,60,'Walkers and Riders','Cross Country'];
+const label=(bus:number|string)=>typeof bus==='number'?'Bus '+bus:bus;
 const time=(n:number)=>new Date(n).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'});
 
 function CharacterHeader({connected,hasState,showConnection}:{connected:boolean,hasState:boolean,showConnection:boolean}){
@@ -64,8 +65,8 @@ export default function Board({controller}:{controller:boolean}){
   const visible=()=>{if(document.visibilityState==='visible'){lastSeen.current=0;void poll()}};document.addEventListener('visibilitychange',visible);
   return()=>{done=true;clearTimeout(timer);clearInterval(tick);document.removeEventListener('visibilitychange',visible)};
  },[controller,pinStatus]);
- async function send(action:string,bus?:number){if(!current.current||busy||!connected)return;setBusy(true);setNotice('Sending…');setReset(false);const s=current.current;
-  try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokenRef.current},body:JSON.stringify({action,bus,day:s.day,revision:s.revision,id:crypto.randomUUID()}),signal:AbortSignal.timeout(5000)});const data=await r.json() as State&{error?:string};if(!r.ok)throw Error(data.error||'Could not send.');apply({...data,screens:current.current?.screens});setNotice(action==='call'?'Bus '+bus+' sent and locked.':'Board cleared for the next dismissal.');void pollRef.current()}
+ async function send(action:string,bus?:number|string){if(!current.current||busy||!connected)return;setBusy(true);setNotice('Sending…');setReset(false);const s=current.current;
+  try{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokenRef.current},body:JSON.stringify({action,bus,day:s.day,revision:s.revision,id:crypto.randomUUID()}),signal:AbortSignal.timeout(5000)});const data=await r.json() as State&{error?:string};if(!r.ok)throw Error(data.error||'Could not send.');apply({...data,screens:current.current?.screens});setNotice(action==='call'?label(bus!)+' sent and locked.':'Board cleared for the next dismissal.');void pollRef.current()}
   catch(e){setNotice(e instanceof Error&&e.name==='TimeoutError'?'Confirmation timed out. Check the board before trying again.':e instanceof Error?e.message:'Could not send. Check your connection.');void pollRef.current()}
   finally{setBusy(false)}
  }
@@ -82,13 +83,13 @@ export default function Board({controller}:{controller:boolean}){
     <section className="control-title"><p className="eyebrow">DISMISSAL CONTROL</p><h1>Bus dismissal</h1><p>Tap a bus as it arrives. Every connected display follows.</p></section>
     <section className="control-panel">
      <div className="control-top"><span className="eyebrow">CALL A BUS</span><a href="/" target="_blank" rel="noreferrer">Open display ↗</a></div>
-     <div className="controller-current" aria-live="polite">{called.size===buses.length?<>All buses <strong>COMPLETE</strong></>:latest?<>Now dismissing <strong>BUS {latest.bus}</strong></>:"Ready for the first bus"}</div><div className="bus-buttons">{buses.map(bus=>{const isCalled=called.has(bus);return <button key={bus} disabled={!connected||busy||isCalled} aria-pressed={isCalled} className={'bus-button '+(isCalled?'called':'')} onClick={()=>void send('call',bus)}><span className="bus-label">BUS</span><strong>{bus}</strong><span className="bus-status">{isCalled?'Called ✓':'Call bus →'}</span></button>})}</div>
+     <div className="controller-current" aria-live="polite">{called.size===buses.length?<>All groups <strong>COMPLETE</strong></>:latest?<>Now dismissing <strong>{label(latest.bus)}</strong></>:"Ready for the first bus"}</div><div className="bus-buttons">{buses.map(bus=>{const isCalled=called.has(bus);return <button key={bus} disabled={!connected||busy||isCalled} aria-pressed={isCalled} className={'bus-button '+(isCalled?'called':'')} onClick={()=>void send('call',bus)}><span className="bus-label">{typeof bus==='number'?'BUS':'GROUP'}</span><strong className={typeof bus==='string'?'group-button-label':undefined}>{bus}</strong><span className="bus-status">{isCalled?'Called ✓':'Call →'}</span></button>})}</div>
      {screenStatusError&&<p role="status" style={{fontSize:13,color:'#8e4a06'}}>{screenStatusError}</p>}
      <div className="receipt" aria-live="polite"><span className="receipt-symbol">{busy?'…':received?'✓':'○'}</span><div><strong>{busy?'Sending bus call…':screens.length?(received===screens.length?'Received by '+received+' display'+(received===1?'':'s'):'Waiting for display confirmation…'):'No active classroom display'}</strong><small>{notice||'Open the display on a second device to test.'}</small></div></div>
-     <div className={'control-actions '+(called.size?'clearable':'')}><span>{called.size===buses.length?'Dismissal complete.':called.size?'Clear resets every called bus.':'Call a bus to begin dismissal.'}</span><button disabled={!connected||busy||called.size===0} onClick={()=>setReset(true)}>Clear board</button></div>
+     <div className={'control-actions '+(called.size?'clearable':'')}><span>{called.size===buses.length?'Dismissal complete.':called.size?'Clear resets every called group.':'Call a group to begin dismissal.'}</span><button disabled={!connected||busy||called.size===0} onClick={()=>setReset(true)}>Clear board</button></div>
      {reset&&<div className="reset-confirm" role="alert"><p>Clear the board and unlock every bus button?</p><button onClick={()=>void send('reset')}>Clear and reset</button><button onClick={()=>setReset(false)}>Cancel</button></div>}
     </section>
-    <section className="activity"><div><p className="eyebrow">TODAY’S CALLS</p><span>{called.size} of {buses.length} buses called</span></div>{calls.length?<ol>{[...calls].reverse().slice(0,12).map(c=><li key={c.id}><strong>Bus {c.bus}</strong><span>{time(c.at)}</span></li>)}</ol>:<p className="muted">A fresh start. No buses called yet.</p>}</section>
+    <section className="activity"><div><p className="eyebrow">TODAY’S CALLS</p><span>{called.size} of {buses.length} groups called</span></div>{calls.length?<ol>{[...calls].reverse().slice(0,12).map(c=><li key={c.id}><strong>{label(c.bus)}</strong><span>{time(c.at)}</span></li>)}</ol>:<p className="muted">A fresh start. No buses called yet.</p>}</section>
     <button type="button" onClick={lock} style={{marginTop:16}}>Lock controller</button>
     <p className="technical">{connected?'Server round trip: '+rtt+' ms · Checks every 0.75 seconds':'Waiting for a connection'}<br/>Authorized for this open controller tab.</p>
    </> }</>:<>
@@ -97,10 +98,10 @@ export default function Board({controller}:{controller:boolean}){
      <section className={'board-live '+(!connected&&state?'stale':'')} aria-live="polite" aria-atomic="true">
       <h1 className="live-heading">{latest?(connected?'NOW DISMISSING':'LAST RECEIVED CALL'):connected?'DISMISSAL READY':'CONNECTING'}</h1>
       <div className="live-current" key={latest?.id||'waiting'}>
-       {latest?<><span className="live-bus-label">BUS</span><strong className="live-number">{latest.bus}</strong><p className="live-instruction">{connected?'Please make your way to your bus.':'Check with school staff.'}</p></>:<div className="live-empty"><strong>Waiting for<br/>the first bus.</strong><p>Your bus will appear here.</p></div>}
+       {latest?<>{typeof latest.bus==='number'&&<span className="live-bus-label">BUS</span>}<strong className={typeof latest.bus==='number'?'live-number':'live-group-name'}>{latest.bus}</strong><p className="live-instruction">{connected?'Please proceed to your dismissal location.':'Check with school staff.'}</p></>:<div className="live-empty"><strong>Waiting for<br/>the first bus.</strong><p>Your bus will appear here.</p></div>}
       </div>
-      <div className="live-history" aria-label="Already called">{Array.from({length:8},(_,i)=>{const entries=i===7?previous.slice(7):previous[i]?[previous[i]]:[];return <div className={'history-slot '+(entries.length>1?'history-pair':'')} key={i}>{entries.map(call=><strong key={call.bus}>{call.bus}</strong>)}</div>})}</div>
-      <div className="live-waiting" aria-label="Still waiting">{buses.filter(bus=>!called.has(bus)).map(bus=><span key={bus}>{bus}</span>)}{called.size===buses.length&&<span className="all-called">All buses called</span>}</div>
+      <div className="live-history" aria-label="Already called">{Array.from({length:8},(_,i)=>{const entries=previous.slice(i*2,i*2+2);return <div className={'history-slot '+(entries.length>1?'history-pair':'')} key={i}>{entries.map(call=><strong className={typeof call.bus==='string'?'history-group':undefined} key={call.bus}>{call.bus}</strong>)}</div>})}</div>
+      <div className="live-waiting" aria-label="Still waiting">{buses.filter(bus=>!called.has(bus)).map(bus=><span className={typeof bus==='string'?'waiting-group':undefined} key={bus}>{bus}</span>)}{called.size===buses.length&&<span className="all-called">All groups called</span>}</div>
      </section>
     </div>
     <nav className="display-tools"><span className={'connection '+(connected?'online':'offline')}><i/>{connected?'Connected':state?'Connection lost':'Connecting…'}</span><span className="tool-spacer"/><button onClick={()=>{if(!sound){audio.current??=new AudioContext();void audio.current.resume()}soundRef.current=!sound;setSound(!sound)}}>{sound?'Chime on':'Chime off'}</button><button onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else if(document.documentElement.requestFullscreen)void document.documentElement.requestFullscreen().catch(()=>setNotice('Fullscreen is unavailable on this device.'));else setNotice('Use your browser’s full-screen mode.')}}>Full screen</button><a href="/controller">Controller ↗</a></nav>
