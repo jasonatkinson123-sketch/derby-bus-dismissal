@@ -34,7 +34,7 @@ The responsive UI uses a purpose-made Character Counts background asset for the 
 - Cloudflare D1 for shared dismissal state
 - ChatGPT Sites hosting and access control
 
-State updates use revision checks and request IDs to prevent lost updates and duplicate submissions. Classroom displays poll every 750 ms, report their received revision, and show a connection warning if updates stop.
+State updates use revision checks and request IDs to prevent lost updates and duplicate submissions. Classroom displays run on a weekday schedule in America/New_York: live from 2:45 to 3:20 p.m. (checks every 3 seconds), idle outside that window (checks every 5 minutes). Displays report their received revision during dismissal, hide bus calls outside the window, and show a connection warning if live updates stop. Keep devices' clocks accurate; the schedule uses the browser's clock. The controller follows the same polling schedule and still refreshes immediately after a call or reset.
 
 ## Local development
 
