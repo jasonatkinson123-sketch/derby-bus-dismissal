@@ -9,9 +9,11 @@ async function state(day:string) {
  return {day, revision:row?.revision ?? 0, calls:JSON.parse(row?.calls ?? '[]').filter((call:any)=>VALID_BUSES.includes(call.bus)), requests:JSON.parse(row?.requests ?? '[]')};
 }
 export async function GET(request:Request) {
- const controller=new URL(request.url).searchParams.has('controller');
+ const params=new URL(request.url).searchParams;
+ const controller=params.has('controller');
+ const demo=params.get('demo')==='1';
  if(controller && !(await authorized(request)))return response({error:'Unauthorized'},401);
- const s=await state(dayNow());
+ const s=await state((demo?'d':'')+dayNow());
  const screens=controller ? (await env.DB!.prepare('SELECT revision, seen FROM screens WHERE day = ? AND seen > ?').bind(s.day,Date.now()-30000).all()).results : [];
  return response({day:s.day,revision:s.revision,calls:s.calls,screens,serverTime:Date.now()});
 }
@@ -22,7 +24,8 @@ export async function POST(request:Request) {
  let body:any;try{body=await request.json()}catch{return response({error:'Invalid request'},400)}
  if(!['call','reset'].includes(body.action)||!Number.isInteger(body.revision)||typeof body.id!=='string'||body.id.length>80) return response({error:'Invalid action'},400);
  if(body.action==='call'&&!VALID_BUSES.includes(body.bus))return response({error:'Invalid bus'},400);
- const day=dayNow();if(body.day!==day)return response({error:'A new school day has started. Please try again.'},409);
+ const demo=new URL(request.url).searchParams.get('demo')==='1';
+ const day=(demo?'d':'')+dayNow();if(body.day!==day)return response({error:'A new school day has started. Please try again.'},409);
  await env.DB!.prepare("INSERT OR IGNORE INTO dismissal (day, revision, calls, requests) VALUES (?,0,'[]','[]')").bind(day).run();
  const s=await state(day);
  if(s.requests.includes(body.id))return response({day:s.day,revision:s.revision,calls:s.calls});
