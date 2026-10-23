@@ -34,7 +34,7 @@ The responsive UI uses a purpose-made Character Counts background asset for the 
 - Cloudflare D1 for shared dismissal state
 - ChatGPT Sites hosting and access control
 
-To demo outside dismissal hours, open `/controller?demo=1` and `/?demo=1`. Demo calls use a separate daily D1 state, so they cannot affect the real classroom board. Demo pages poll live for 20 minutes, then pause until reloaded. The demo controller still requires the PIN; clear its calls to begin another run.
+To demo outside dismissal hours, open `/controller?demo=1` and `/?demo=1`. Demo calls use a separate daily D1 state, so they cannot affect the real classroom board. Demo pages poll live for 20 minutes, then pause until reloaded. At 2:45 p.m. on a weekday, any open demo page automatically navigates to its real display or controller URL; the real controller asks for the PIN again. The demo controller still requires the PIN; clear its calls to begin another run.
 
 State updates use revision checks and request IDs to prevent lost updates and duplicate submissions. Classroom displays run on a weekday schedule in America/New_York: live from 2:45 to 3:20 p.m. (checks every 3 seconds), idle outside that window (checks every 5 minutes). Displays report their received revision during dismissal, hide bus calls outside the window, and show a connection warning if live updates stop. Keep devices' clocks accurate; the schedule uses the browser's clock. The controller follows the same polling schedule and still refreshes immediately after a call or reset.
 
