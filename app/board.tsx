@@ -31,7 +31,19 @@ export default function Board({controller}:{controller:boolean}){
  const [connectionError,setConnectionError]=useState(''),[screenStatusError,setScreenStatusError]=useState('');
  const [demo,setDemo]=useState(false),[state,setState]=useState<State|null>(null),[dismissalActive,setDismissalActive]=useState(dismissalWindow),[connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[,setNow]=useState(0),[rtt,setRtt]=useState(0),[reset,setReset]=useState(false),[sound,setSound]=useState(false);
  const tokenRef=useRef(''),demoStarted=useRef(0);
- useEffect(()=>{if(new URLSearchParams(window.location.search).get('demo')==='1'){demoStarted.current=Date.now();setDemo(true)}},[]);
+ useEffect(()=>{
+  if(new URLSearchParams(window.location.search).get('demo')!=='1')return;
+  // Demo tabs must never remain on the test board when dismissal opens.
+  const switchToLive=()=>{
+   if(!dismissalWindow())return false;
+   window.location.replace(controller?'/controller':'/');
+   return true;
+  };
+  if(switchToLive())return;
+  demoStarted.current=Date.now();setDemo(true);
+  const timer=setInterval(switchToLive,1000);
+  return()=>clearInterval(timer);
+ },[controller]);
  const current=useRef<State|null>(null),lastGood=useRef(0),lastSeen=useRef(0),screenId=useRef(''),audio=useRef<AudioContext|null>(null),soundRef=useRef(false),first=useRef(true),pollRef=useRef<()=>Promise<void>>(async()=>{});
  async function unlock(e:React.FormEvent){e.preventDefault();setPinBusy(true);setPinError('');try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});const v=await r.json() as {error?:string;token?:string};if(!r.ok)throw Error(v.error||'Could not unlock');tokenRef.current=v.token||'';setPin('');setConnectionError('');setPinStatus('unlocked')}catch(e){setPinError(e instanceof Error?e.message:'Unable to unlock')}finally{setPinBusy(false)}}
  async function lock(){await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+tokenRef.current}}).catch(()=>{});tokenRef.current='';setPinStatus('locked');setConnectionError('');setConnected(false);setState(null);current.current=null}
