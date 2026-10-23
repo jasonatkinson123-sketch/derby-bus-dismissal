@@ -12,7 +12,7 @@ export async function GET(request:Request) {
  const controller=new URL(request.url).searchParams.has('controller');
  if(controller && !(await authorized(request)))return response({error:'Unauthorized'},401);
  const s=await state(dayNow());
- const screens=controller ? (await env.DB!.prepare('SELECT revision, seen FROM screens WHERE day = ? AND seen > ?').bind(s.day,Date.now()-7000).all()).results : [];
+ const screens=controller ? (await env.DB!.prepare('SELECT revision, seen FROM screens WHERE day = ? AND seen > ?').bind(s.day,Date.now()-30000).all()).results : [];
  return response({day:s.day,revision:s.revision,calls:s.calls,screens,serverTime:Date.now()});
 }
 export async function POST(request:Request) {
