@@ -10,7 +10,12 @@ const buses:(number|string)[]=[51,52,53,54,55,56,57,58,59,60,'Walkers and Riders
 const label=(bus:number|string)=>typeof bus==='number'?'Bus '+bus:bus;
 const time=(n:number)=>new Date(n).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'});
 // Classroom devices may stay open all day. Use Derby's local time, including DST.
-const halfDayToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())==='2026-11-09';
+const HALF_DAY_DATES=new Set(['2026-11-09','2026-11-13']);
+const halfDayToday=()=>{
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const value=(type:string)=>parts.find(part=>part.type===type)?.value||'';
+ return HALF_DAY_DATES.has(value('year')+'-'+value('month')+'-'+value('day'));
+};
 const windowLabel=()=>halfDayToday()?'12:20–12:50 p.m.':'2:45–3:30 p.m.';
 const dismissalWindow=()=>{
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -18,8 +23,8 @@ const dismissalWindow=()=>{
  const weekday=value('weekday');
  const minutes=Number(value('hour'))*60+Number(value('minute'));
  if(weekday==='Sat'||weekday==='Sun')return false;
- // Monday, November 9, 2026: early dismissal, 12:20–12:50 p.m. Eastern.
- if(value('year')==='2026'&&value('month')==='11'&&value('day')==='09')return minutes>=12*60+20&&minutes<12*60+50;
+ // Published early-dismissal dates: Nov 9 and Friday Nov 13, 2026.
+ if(HALF_DAY_DATES.has(value('year')+'-'+value('month')+'-'+value('day')))return minutes>=12*60+20&&minutes<12*60+50;
  return minutes>=14*60+45&&minutes<15*60+30;
 };
 
