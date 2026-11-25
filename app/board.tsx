@@ -10,7 +10,7 @@ const buses:(number|string)[]=[51,52,53,54,55,56,57,58,59,60,'Walkers and Riders
 const label=(bus:number|string)=>typeof bus==='number'?'Bus '+bus:bus;
 const time=(n:number)=>new Date(n).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'});
 // Classroom devices may stay open all day. Use Derby's local time, including DST.
-const HALF_DAY_DATES=new Set(['2026-11-09','2026-11-13']);
+const HALF_DAY_DATES=new Set(['2026-11-09','2026-11-13','2026-11-25']);
 const halfDayToday=()=>{
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
  const value=(type:string)=>parts.find(part=>part.type===type)?.value||'';
